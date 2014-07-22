@@ -22,11 +22,9 @@ public class LongPartitioner
     @Override
     public int partition(Long value, int numPartitions)
     {
-        if (value instanceof Long) {
-            return Ints.checkedCast(((Long) value) % numPartitions);
-        }
-        else {
+        if (value == null) {
             return 0;
         }
+        return Ints.checkedCast(((Long) value) % numPartitions);
     }
 }

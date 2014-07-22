@@ -19,13 +19,19 @@ import com.google.common.base.Function;
 import com.google.common.base.Splitter;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.Iterables;
 import com.google.common.collect.Maps;
+import com.google.common.util.concurrent.Futures;
+import com.google.common.util.concurrent.ListenableFuture;
+import com.google.common.util.concurrent.ListeningExecutorService;
+import com.google.common.util.concurrent.MoreExecutors;
 import io.airlift.command.Command;
 import io.airlift.json.ObjectMapperProvider;
 import io.airlift.log.Logger;
 import io.airlift.log.Logging;
 import io.airlift.log.LoggingConfiguration;
 import io.airlift.log.LoggingMBean;
+import io.airlift.tpch.TpchEntity;
 import io.airlift.tpch.TpchTable;
 import kafka.javaapi.producer.Producer;
 import kafka.javaapi.producer.ProducerData;
@@ -38,6 +44,9 @@ import javax.inject.Inject;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
+import java.util.concurrent.Callable;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 
 import static com.google.common.base.Preconditions.checkState;
 
@@ -61,7 +70,7 @@ public class LoadCommand
         new LoggingMBean().setLevel("kafka", "ERROR");
 
         String tableNames = loaderOptions.tables;
-        Map<String, TpchTable<?>> allTables = ImmutableMap.copyOf(Maps.uniqueIndex(TpchTable.getTables(), new Function<TpchTable<?>, String>()
+        final Map<String, TpchTable<?>> allTables = ImmutableMap.copyOf(Maps.uniqueIndex(TpchTable.getTables(), new Function<TpchTable<?>, String>()
         {
             @Override
             public String apply(@Nonnull TpchTable<?> input)
@@ -93,23 +102,45 @@ public class LoadCommand
         props.put("request.required.acks", "1");
         ProducerConfig producerConfig = new ProducerConfig(props);
 
-        ObjectMapper mapper = objectMapperProvider.get();
+        final ObjectMapper mapper = objectMapperProvider.get();
         mapper.enable(MapperFeature.AUTO_DETECT_GETTERS);
 
-        Producer producer = new Producer<String, String>(producerConfig);
+        final Producer<String, String> producer = new Producer<>(producerConfig);
 
-        for (String table : tables) {
-            TpchTable<?> tpchTable = allTables.get(table);
-            LOG.info("Loading table '%s' into topic '%s%s'...", table, loaderOptions.prefix, table);
-            long count = 0;
-            for (Object o : tpchTable.createGenerator(loaderOptions.tpchType.getScaleFactor(), 1, 1)) {
-                String value = mapper.writeValueAsString(o);
-                ProducerData message = new ProducerData<String, String>(loaderOptions.prefix + table, value);
-                producer.send(message);
-                count++;
-            }
-            LOG.info("Generated %d rows for table '%s'.", count, table);
+        ListeningExecutorService executor = MoreExecutors.listeningDecorator(Executors.newCachedThreadPool());
+
+        ImmutableList.Builder<ListenableFuture<Long>> futureBuilder = ImmutableList.builder();
+        for (final String table : tables) {
+            ListenableFuture<Long> future = executor.submit(new Callable<Long>()
+            {
+                @Override
+                public Long call()
+                        throws Exception
+                {
+                    TpchTable<?> tpchTable = allTables.get(table);
+                    LOG.info("Loading table '%s' into topic '%s%s'...", table, loaderOptions.prefix, table);
+                    long count = 0;
+
+                    for (List<? extends TpchEntity> partition : Iterables.partition(tpchTable.createGenerator(loaderOptions.tpchType.getScaleFactor(), 1, 1), 100)) {
+                        ImmutableList.Builder<String> builder = ImmutableList.builder();
+                        for (TpchEntity o : partition) {
+                            builder.add(mapper.writeValueAsString(o));
+                            count++;
+                        }
+
+                        ProducerData<String, String> message = new ProducerData<>(loaderOptions.prefix + table, builder.build());
+                        producer.send(message);
+                    }
+                    LOG.info("Generated %d rows for table '%s'.", count, table);
+                    return count;
+                }
+            });
+            futureBuilder.add(future);
         }
+
+        Futures.allAsList(futureBuilder.build()).get();
+        executor.shutdown();
+        executor.awaitTermination(1, TimeUnit.DAYS);
 
         producer.close();
     }
