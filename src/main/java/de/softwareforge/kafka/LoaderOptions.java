@@ -17,8 +17,8 @@ import io.airlift.command.Option;
 
 public class LoaderOptions
 {
-    @Option(name = "--brokers", required = true, title = "brokers", description = "One or more Kafka brokers (host:port), separated by comma")
-    public String brokers = null;
+    @Option(name = "--zookeeper", required = true, title = "zookeeper", description = "One or more Zookeeper hosts (host:port), separated by comma")
+    public String zookeeper = null;
 
     @Option(name = "--tpch-type", title = "tpch-type", description = "TPCH type to load (supported are tiny, sf1, sf100, sf300, sf1000, sf3000, sf10000 sf30000 and sf100000)")
     public TpchType tpchType = TpchType.tiny;

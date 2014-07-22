@@ -28,7 +28,7 @@ import io.airlift.log.LoggingConfiguration;
 import io.airlift.log.LoggingMBean;
 import io.airlift.tpch.TpchTable;
 import kafka.javaapi.producer.Producer;
-import kafka.producer.KeyedMessage;
+import kafka.javaapi.producer.ProducerData;
 import kafka.producer.ProducerConfig;
 import kafka.serializer.StringEncoder;
 
@@ -86,9 +86,8 @@ public class LoadCommand
         LOG.info("Processing tables: %s", tables);
 
         Properties props = new Properties();
-        props.put("metadata.broker.list", loaderOptions.brokers);
+        props.put("zk.connect", loaderOptions.zookeeper);
         props.put("serializer.class", StringEncoder.class.getName());
-        props.put("key.serializer.class", LongEncoder.class.getName());
         props.put("partitioner.class", LongPartitioner.class.getName());
         props.put("serializer.encoding", "UTF8");
         props.put("request.required.acks", "1");
@@ -97,7 +96,7 @@ public class LoadCommand
         ObjectMapper mapper = objectMapperProvider.get();
         mapper.enable(MapperFeature.AUTO_DETECT_GETTERS);
 
-        Producer producer = new Producer<Long, String>(producerConfig);
+        Producer producer = new Producer<String, String>(producerConfig);
 
         for (String table : tables) {
             TpchTable<?> tpchTable = allTables.get(table);
@@ -105,7 +104,7 @@ public class LoadCommand
             long count = 0;
             for (Object o : tpchTable.createGenerator(loaderOptions.tpchType.getScaleFactor(), 1, 1)) {
                 String value = mapper.writeValueAsString(o);
-                KeyedMessage message = new KeyedMessage(loaderOptions.prefix + table, count, value);
+                ProducerData message = new ProducerData<String, String>(loaderOptions.prefix + table, value);
                 producer.send(message);
                 count++;
             }

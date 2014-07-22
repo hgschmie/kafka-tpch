@@ -15,17 +15,12 @@ package de.softwareforge.kafka;
 
 import com.google.common.primitives.Ints;
 import kafka.producer.Partitioner;
-import kafka.utils.VerifiableProperties;
 
 public class LongPartitioner
-        implements Partitioner
+        implements Partitioner<Long>
 {
-    public LongPartitioner(VerifiableProperties props)
-    {
-    }
-
     @Override
-    public int partition(Object value, int numPartitions)
+    public int partition(Long value, int numPartitions)
     {
         if (value instanceof Long) {
             return Ints.checkedCast(((Long) value) % numPartitions);

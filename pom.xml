@@ -24,7 +24,7 @@
     </parent>
 
     <groupId>de.softwareforge</groupId>
-    <artifactId>kafka_tpch_0811</artifactId>
+    <artifactId>kafka_tpch_072</artifactId>
     <version>1.0-SNAPSHOT</version>
     <packaging>jar</packaging>
 
@@ -35,9 +35,9 @@
 
     <dependencies>
         <dependency>
-            <groupId>org.apache.kafka</groupId>
-            <artifactId>kafka_2.10</artifactId>
-            <version>0.8.1.1</version>
+            <groupId>kafka</groupId>
+            <artifactId>core-kafka_2.8.0</artifactId>
+            <version>0.7.2</version>
             <exclusions>
                 <exclusion>
                     <groupId>junit</groupId>
@@ -102,6 +102,12 @@
         </dependency>
 
         <dependency>
+            <groupId>org.scala-lang</groupId>
+            <artifactId>scala-library</artifactId>
+            <version>2.8.2</version>
+        </dependency>
+
+        <dependency>
             <groupId>com.google.code.findbugs</groupId>
             <artifactId>annotations</artifactId>
         </dependency>
@@ -109,11 +115,6 @@
 
     <dependencyManagement>
         <dependencies>
-            <dependency>
-                <groupId>org.scala-lang</groupId>
-                <artifactId>scala-library</artifactId>
-                <version>2.10.1</version>
-            </dependency>
             <dependency>
                 <groupId>org.weakref</groupId>
                 <artifactId>jmxutils</artifactId>
